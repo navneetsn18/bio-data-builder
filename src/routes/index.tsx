@@ -73,7 +73,7 @@ const defaultSections: Section[] = [
 
 function BiodataBuilder() {
   const [sections, setSections] = useState<Section[]>(defaultSections);
-  const [heading, setHeading] = useState("॥ श्री गणेशाय नमः ॥");
+  
   const [photo, setPhoto] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -194,27 +194,30 @@ function BiodataBuilder() {
         <div className="space-y-4">
           <Card className="p-4 space-y-3">
             <div>
-              <Label>Heading</Label>
-              <Input value={heading} onChange={(e) => setHeading(e.target.value)} />
-            </div>
-            <div>
               <Label>Photo</Label>
               <div className="flex items-center gap-3 mt-1">
                 {photo && (
                   <img src={photo} alt="" className="h-16 w-12 object-cover rounded border" />
                 )}
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => e.target.files?.[0] && onPhoto(e.target.files[0])}
-                  />
-                  <span className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent">
-                    <Upload className="h-4 w-4" />
-                    Upload
-                  </span>
-                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById("photo-input")?.click()}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload Photo
+                </Button>
+                <input
+                  id="photo-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) onPhoto(f);
+                    e.target.value = "";
+                  }}
+                />
                 {photo && (
                   <Button variant="ghost" size="sm" onClick={() => setPhoto(null)}>
                     Remove
@@ -223,6 +226,7 @@ function BiodataBuilder() {
               </div>
             </div>
           </Card>
+
 
           {sections.map((sec) => (
             <Card key={sec.id} className="p-4 space-y-3">
