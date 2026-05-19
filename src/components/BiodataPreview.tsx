@@ -23,7 +23,7 @@ export const BiodataPreview = forwardRef<HTMLDivElement, Props>(
           background: "var(--biodata-bg)",
           position: "relative",
           padding: "140px 56px 120px",
-          fontFamily: "'Lato', sans-serif",
+          fontFamily: "'Cormorant Garamond', serif",
           color: "var(--biodata-text)",
           boxSizing: "border-box",
         }}
@@ -36,7 +36,11 @@ export const BiodataPreview = forwardRef<HTMLDivElement, Props>(
         <img src={border} alt="" className="hborder top" />
 
         <div style={{ textAlign: "center", marginBottom: "28px", marginTop: "-30px" }}>
-          <img src={ganeshay} alt="Shri Ganeshay Namah" style={{ height: "70px", width: "auto" }} />
+          <img
+            src={ganeshay}
+            alt="Shri Ganeshay Namah"
+            style={{ height: "70px", width: "auto", display: "block", margin: "0 auto" }}
+          />
         </div>
 
         {photo && (
@@ -66,7 +70,7 @@ export const BiodataPreview = forwardRef<HTMLDivElement, Props>(
                 letterSpacing: "0.1em",
                 padding: "10px 18px",
                 textTransform: "uppercase",
-                fontFamily: "'Lato', sans-serif",
+                fontFamily: "'Cormorant Garamond', serif",
               }}
             >
               {section.title}
@@ -77,13 +81,14 @@ export const BiodataPreview = forwardRef<HTMLDivElement, Props>(
                   key={f.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "210px 1fr",
-                    fontSize: "14px",
-                    padding: "5px 0",
-                    lineHeight: 1.5,
+                    gridTemplateColumns: "max-content 1fr",
+                    columnGap: "8px",
+                    fontSize: "16px",
+                    padding: "3px 0",
+                    lineHeight: 1.1,
                   }}
                 >
-                  <div style={{ fontWeight: 700, color: "var(--biodata-label)" }}>
+                  <div style={{ fontWeight: 900, color: "#0b1220", fontSize: "16px" }}>
                     {f.label} :
                   </div>
                   <div>{f.value}</div>

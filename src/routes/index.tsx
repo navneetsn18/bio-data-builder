@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import jsPDF from "jspdf";
+import { useEffect, useRef, useState } from "react";
+import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Trash2, Plus, Upload, Download } from "lucide-react";
+import { Trash2, Plus, Upload, Download, ArrowUp, ArrowDown } from "lucide-react";
 import { BiodataPreview, type Section } from "@/components/BiodataPreview";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -45,8 +45,11 @@ const defaultSections: Section[] = [
       { id: uid(), label: "Religion", value: "" },
       { id: uid(), label: "Mother Tongue", value: "" },
       { id: uid(), label: "Caste", value: "" },
+      { id: uid(), label: "Sub Caste", value: "" },
       { id: uid(), label: "Highest Education", value: "" },
       { id: uid(), label: "Job/Occupation", value: "" },
+      { id: uid(), label: "Organization Name", value: "" },
+      { id: uid(), label: "Expertise Languages", value: "" },
     ],
   },
   {
@@ -59,6 +62,8 @@ const defaultSections: Section[] = [
       { id: uid(), label: "Mother's Occupation", value: "" },
       { id: uid(), label: "Total Brothers", value: "" },
       { id: uid(), label: "Total Sisters", value: "" },
+      { id: uid(), label: "Married Brothers", value: "" },
+      { id: uid(), label: "Married Sisters", value: "" },
     ],
   },
   {
@@ -71,12 +76,104 @@ const defaultSections: Section[] = [
   },
 ];
 
+const LOCAL_STORAGE_KEY = "biodata-builder-state-v1";
+
+type PersistedDraft = {
+  sections: Section[];
+  photo: string | null;
+};
+
+const isPersistedDraft = (value: unknown): value is PersistedDraft => {
+  if (!value || typeof value !== "object") return false;
+
+  const draft = value as { sections?: unknown; photo?: unknown };
+  if (!(draft.photo === null || typeof draft.photo === "string")) return false;
+  if (!Array.isArray(draft.sections)) return false;
+
+  return draft.sections.every((section) => {
+    if (!section || typeof section !== "object") return false;
+    const maybeSection = section as { id?: unknown; title?: unknown; fields?: unknown };
+    if (
+      typeof maybeSection.id !== "string" ||
+      typeof maybeSection.title !== "string" ||
+      !Array.isArray(maybeSection.fields)
+    ) {
+      return false;
+    }
+
+    return maybeSection.fields.every((field) => {
+      if (!field || typeof field !== "object") return false;
+      const maybeField = field as { id?: unknown; label?: unknown; value?: unknown };
+      return (
+        typeof maybeField.id === "string" &&
+        typeof maybeField.label === "string" &&
+        typeof maybeField.value === "string"
+      );
+    });
+  });
+};
+
 function BiodataBuilder() {
   const [sections, setSections] = useState<Section[]>(defaultSections);
-  
   const [photo, setPhoto] = useState<string | null>(null);
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
   const [exporting, setExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!isPersistedDraft(parsed)) return;
+
+      // Merge any missing default sections/fields so new defaults appear for existing users
+      const mergedSections: Section[] = defaultSections.map((def) => {
+        const existing = parsed.sections.find((s: Section) => s.title === def.title);
+        if (!existing) return def;
+
+        // Build map of existing fields by label for quick lookup
+        const existingByLabel = new Map<string, Field>();
+        existing.fields.forEach((f: Field) => existingByLabel.set(f.label, f));
+
+        // Keep default order: use existing field if present, otherwise add default placeholder
+        const mergedFields: Field[] = def.fields.map((df) => {
+          const ex = existingByLabel.get(df.label);
+          return ex ? { ...ex } : { id: uid(), label: df.label, value: "" };
+        });
+
+        // Append any user-created fields that are not part of defaults (preserve user's additions)
+        const defaultLabels = new Set(def.fields.map((f) => f.label));
+        const extraUserFields = existing.fields.filter((f) => !defaultLabels.has(f.label));
+
+        return { ...existing, fields: [...mergedFields, ...extraUserFields] };
+      });
+
+      // include any user-created sections that aren't part of defaults
+      const extra = parsed.sections.filter(
+        (s: Section) => !defaultSections.some((d) => d.title === s.title),
+      );
+
+      setSections([...mergedSections, ...extra]);
+      setPhoto(parsed.photo);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setHasLoadedDraft(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedDraft) return;
+
+    try {
+      const draft: PersistedDraft = { sections, photo };
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(draft));
+    } catch (error) {
+      console.error(error);
+    }
+  }, [sections, photo, hasLoadedDraft]);
 
   const updateField = (sid: string, fid: string, key: "label" | "value", v: string) => {
     setSections((s) =>
@@ -98,6 +195,28 @@ function BiodataBuilder() {
           ? { ...sec, fields: [...sec.fields, { id: uid(), label: "New Field", value: "" }] }
           : sec
       )
+    );
+  };
+
+  const moveField = (sid: string, fid: string, direction: "up" | "down") => {
+    setSections((s) =>
+      s.map((sec) => {
+        if (sec.id !== sid) return sec;
+
+        const currentIndex = sec.fields.findIndex((field) => field.id === fid);
+        if (currentIndex === -1) return sec;
+
+        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= sec.fields.length) return sec;
+
+        const nextFields = [...sec.fields];
+        [nextFields[currentIndex], nextFields[targetIndex]] = [
+          nextFields[targetIndex],
+          nextFields[currentIndex],
+        ];
+
+        return { ...sec, fields: nextFields };
+      })
     );
   };
 
@@ -127,44 +246,71 @@ function BiodataBuilder() {
     reader.readAsDataURL(file);
   };
 
+  const resetDraft = () => {
+    if (!confirm("Reset draft? This will clear saved data.")) return;
+    try {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch (e) {
+      console.error(e);
+    }
+    setSections(defaultSections);
+    setPhoto(null);
+    toast.success("Draft cleared");
+  };
+
   const exportPdf = async () => {
     if (!previewRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(previewRef.current, {
+      const clonedElement = previewRef.current.cloneNode(true) as HTMLElement;
+      
+      // Apply solid background color + remove oklch colors
+      const style = document.createElement("style");
+      style.textContent = `
+        @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&display=swap");
+        .biodata-page { background: #eef0dc !important; font-family: 'Cormorant Garamond', serif !important; color: #2d3a4a !important; }
+        .biodata-page * { color: #2d3a4a !important; font-family: 'Cormorant Garamond', serif !important; }
+        .biodata-page .corner, .biodata-page .hborder { pointer-events: none; }
+        svg { display: none !important; }
+      `;
+      clonedElement.appendChild(style);
+      
+      // Append to DOM temporarily
+      const container = document.createElement("div");
+      container.style.position = "absolute";
+      container.style.left = "-9999px";
+      container.style.top = "-9999px";
+      container.appendChild(clonedElement);
+      document.body.appendChild(container);
+      
+      const canvas = await html2canvas(clonedElement, {
         scale: 2,
-        backgroundColor: null,
+        backgroundColor: "#eef0dc",
         useCORS: true,
+        allowTaint: true,
+        logging: false,
+        removeContainer: false,
       });
-      const img = canvas.toDataURL("image/jpeg", 0.95);
+      
+      document.body.removeChild(container);
+      
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
+      
+      // Fit to 1 page
       const ratio = canvas.height / canvas.width;
-      const h = pageW * ratio;
-      if (h <= pageH) {
-        pdf.addImage(img, "JPEG", 0, 0, pageW, h);
-      } else {
-        // Multi-page split
-        const pageHpx = (canvas.width * pageH) / pageW;
-        let y = 0;
-        while (y < canvas.height) {
-          const slice = document.createElement("canvas");
-          slice.width = canvas.width;
-          slice.height = Math.min(pageHpx, canvas.height - y);
-          const ctx = slice.getContext("2d")!;
-          ctx.drawImage(canvas, 0, y, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
-          const simg = slice.toDataURL("image/jpeg", 0.95);
-          const sh = (slice.height * pageW) / slice.width;
-          if (y > 0) pdf.addPage();
-          pdf.addImage(simg, "JPEG", 0, 0, pageW, sh);
-          y += slice.height;
-        }
-      }
+      const imgH = pageW * ratio;
+      const scale = imgH > pageH ? pageH / imgH : 1;
+      const finalH = imgH * scale;
+      
+      const img = canvas.toDataURL("image/jpeg", 0.95);
+      pdf.addImage(img, "JPEG", 0, 0, pageW, finalH);
+      
       pdf.save("biodata.pdf");
       toast.success("PDF downloaded");
     } catch (e) {
-      console.error(e);
+      console.error("PDF error:", e);
       toast.error("Failed to generate PDF");
     } finally {
       setExporting(false);
@@ -182,16 +328,21 @@ function BiodataBuilder() {
               Fill in your details, attach a photo, and export to PDF.
             </p>
           </div>
-          <Button onClick={exportPdf} disabled={exporting}>
-            <Download className="mr-2 h-4 w-4" />
-            {exporting ? "Generating…" : "Download PDF"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={resetDraft}>
+              Reset
+            </Button>
+            <Button onClick={exportPdf} disabled={exporting}>
+              <Download className="mr-2 h-4 w-4" />
+              {exporting ? "Generating…" : "Download PDF"}
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[1fr_840px]">
+      <main className="mx-auto grid max-w-screen-l gap-6 px-6 py-6 lg:grid-cols-[1fr_800px]">
         {/* Editor */}
-        <div className="space-y-4">
+        <div className="space-y-4 pr-8">
           <Card className="p-4 space-y-3">
             <div>
               <Label>Photo</Label>
@@ -241,25 +392,48 @@ function BiodataBuilder() {
                 </Button>
               </div>
               <div className="space-y-2">
-                {sec.fields.map((f) => (
-                  <div key={f.id} className="grid grid-cols-[200px_1fr_auto] gap-2">
+                {sec.fields.map((f, idx) => (
+                  <div key={f.id} className="grid grid-cols-[310px_1fr_120px] gap-2 items-center">
                     <Input
                       value={f.label}
                       onChange={(e) => updateField(sec.id, f.id, "label", e.target.value)}
                       placeholder="Label"
+                      className="text-lg py-2 px-2 font-extrabold"
                     />
                     <Input
                       value={f.value}
                       onChange={(e) => updateField(sec.id, f.id, "value", e.target.value)}
                       placeholder="Value"
+                      className="text-lg py-3 px-3 min-w-[58ch] font-normal"
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeField(sec.id, f.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={idx === 0}
+                        onClick={() => moveField(sec.id, f.id, "up")}
+                        title="Move up"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={idx === sec.fields.length - 1}
+                        onClick={() => moveField(sec.id, f.id, "down")}
+                        title="Move down"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeField(sec.id, f.id)}
+                        title="Delete field"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
