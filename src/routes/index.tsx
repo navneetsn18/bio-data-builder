@@ -278,7 +278,7 @@ function BiodataBuilder() {
         <div className="lg:sticky lg:top-6 lg:self-start">
           <div className="overflow-auto rounded-lg border bg-white shadow-sm">
             <div style={{ transform: "scale(1)", transformOrigin: "top left" }}>
-              <BiodataPreview ref={previewRef} sections={sections} photo={photo} heading={heading} />
+              <BiodataPreview ref={previewRef} sections={sections} photo={photo} />
             </div>
           </div>
         </div>
