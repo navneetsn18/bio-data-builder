@@ -143,3 +143,34 @@
     color: var(--color-foreground);
   }
 }
+
+/* Biodata design tokens */
+:root {
+  --biodata-bg: #eef0dc;
+  --biodata-section: #e8b4c8;
+  --biodata-text: #2d3a4a;
+  --biodata-label: #2d3a4a;
+  --biodata-heading: #c44039;
+}
+
+.biodata-page .corner {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  pointer-events: none;
+}
+.biodata-page .corner.top-left { top: 0; left: 0; }
+.biodata-page .corner.top-right { top: 0; right: 0; transform: scaleX(-1); }
+.biodata-page .corner.bottom-left { bottom: 0; left: 0; transform: scaleY(-1); }
+.biodata-page .corner.bottom-right { bottom: 0; right: 0; transform: scale(-1, -1); }
+
+.biodata-page .hborder {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: auto;
+  pointer-events: none;
+}
+.biodata-page .hborder.top { top: 30px; }
+.biodata-page .hborder.bottom { bottom: 30px; }
