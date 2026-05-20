@@ -22,33 +22,13 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npx vite build --base "/${{ github.event.repository.name }}/"
-
-      - name: Create index.html for static hosting
-        run: |
-          cd ./dist/client
-          JS_FILE=$(ls assets/*.js | head -1)
-          CSS_FILE=$(ls assets/*.css | head -1)
-          cat > index.html << EOF
-          <!DOCTYPE html>
-          <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Biodata PDF Generator</title>
-              <link rel="stylesheet" href="$CSS_FILE">
-            </head>
-            <body>
-              <div id="root"></div>
-              <script type="module" src="$JS_FILE"></script>
-            </body>
-          </html>
-          EOF
+        run: VITE_BASE_URL="/${{ github.event.repository.name }}/" npm run build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist/client
+
 
 
